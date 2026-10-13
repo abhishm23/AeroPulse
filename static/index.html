@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AeroPulse // Tactical Military HUD Airspace Surveillance</title>
+  
+  <!-- Google Fonts: JetBrains Mono & Share Tech Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+  <!-- Leaflet 1.9.4 CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+
+  <!-- AeroPulse Tactical Military HUD CSS -->
+  <link rel="stylesheet" href="css/hud.css">
+</head>
+<body>
+
+  <!-- Full-Viewport Leaflet Map -->
+  <div id="map"></div>
+
+  <!-- Tactical CRT Scanline & Phosphor Vignette Overlay -->
+  <div class="hud-crt-overlay" id="crtOverlay"></div>
+
+  <!-- Animated Radar Sweep Widget -->
+  <div class="hud-radar-sweep" id="radarSweep" title="Tactical Surveillance Radar">
+    <div class="hud-radar-crosshair"></div>
+  </div>
+
+  <!-- Top Header Metrics Bar -->
+  <header class="hud-panel hud-header-bar" id="headerBar">
+    <div class="hud-header-left">
+      <div class="hud-brand-title">
+        <span>AEROPULSE</span>
+        <span class="hud-brand-badge">HUD v1.0</span>
+      </div>
+      <div class="hud-connection-status" id="connectionStatusBadge">
+        <span class="status-beacon-dot" id="connectionBeacon"></span>
+        <span id="connectionModeText">CONNECTING...</span>
+      </div>
+    </div>
+
+    <!-- Center Situational Counters -->
+    <div class="hud-header-metrics" id="headerMetrics">
+      <div class="metric-item">
+        <span class="metric-label">AIRBORNE:</span>
+        <span class="metric-value nominal" id="airborneCount">0</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">ANOMALIES:</span>
+        <span class="metric-value nominal" id="anomalyCount">0</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">SYSTEM:</span>
+        <span class="metric-value nominal" id="systemStatus">NOMINAL</span>
+      </div>
+    </div>
+
+    <!-- Right Controls & Zulu Clock -->
+    <div class="hud-header-right">
+      <div class="hud-utc-clock" id="utcClock">----/--/-- --:--:-- UTC</div>
+      <button class="hud-btn" id="audioToggleBtn" title="Toggle Web Audio Tactical Sound Alerts">🔊 AUDIO [ON]</button>
+      <button class="hud-btn" id="crtToggleBtn" title="Toggle Tactical CRT Scanlines (HotKey: C)">📺 CRT [ON]</button>
+      <button class="hud-btn" id="tableToggleBtn" title="Toggle Flight Data Grid (HotKey: T)">📊 DATA GRID</button>
+      <button class="hud-btn" id="centerAirspaceBtn" title="Reset Airspace View">🎯 CENTER</button>
+    </div>
+  </header>
+
+  <!-- Floating Anomaly Event Feed Panel -->
+  <aside class="hud-panel hud-anomaly-panel" id="anomalyFeedPanel">
+    <div class="hud-panel-header">
+      <div class="hud-panel-title">
+        <span>TACTICAL ALERTS</span>
+        <span class="hud-feed-badge" id="alertBadgeCount">0</span>
+      </div>
+      <span style="font-size: 10px; color: var(--hud-text-dim);">LIVE FEED</span>
+    </div>
+    <div class="hud-feed-list" id="anomalyFeedList">
+      <div class="anomaly-empty-state" id="feedEmptyState">ALL AIRSPACE VECTORS NOMINAL</div>
+    </div>
+  </aside>
+
+  <!-- Interactive Telemetry Slide-Out Drawer -->
+  <aside class="hud-panel hud-telemetry-drawer" id="telemetryDrawer">
+    <div class="drawer-header">
+      <div class="drawer-title-group">
+        <div class="drawer-callsign" id="drawerCallsign">------</div>
+        <div class="drawer-subtitle">
+          <span id="drawerIcao">ICAO: ------</span>
+          <span>•</span>
+          <span id="drawerCountry">UNKNOWN</span>
+        </div>
+      </div>
+      <button class="drawer-close-btn" id="drawerCloseBtn" title="Close Drawer (ESC)">&times;</button>
+    </div>
+
+    <div class="drawer-content">
+      <!-- Diagnostic Rationale Banner -->
+      <div class="drawer-diagnostic-banner nominal" id="drawerDiagnosticBanner">
+        <span class="diagnostic-label" id="drawerDiagnosticLabel">STATUS: NOMINAL</span>
+        <span id="drawerRationaleText">Normal cruise kinematic vector. No thresholds exceeded.</span>
+      </div>
+
+      <!-- Telemetry Matrix -->
+      <div class="telemetry-grid">
+        <div class="telemetry-card" id="cardAltitude">
+          <div class="telemetry-card-label">Baro Altitude</div>
+          <div class="telemetry-card-value-primary" id="drawerAltFt">--- ft</div>
+          <div class="telemetry-card-value-secondary" id="drawerAltM">--- m</div>
+        </div>
+        <div class="telemetry-card" id="cardSpeed">
+          <div class="telemetry-card-label">Ground Speed</div>
+          <div class="telemetry-card-value-primary" id="drawerSpeedKts">--- kts</div>
+          <div class="telemetry-card-value-secondary" id="drawerSpeedMs">--- m/s</div>
+        </div>
+        <div class="telemetry-card" id="cardClimb">
+          <div class="telemetry-card-label">Vertical Rate</div>
+          <div class="telemetry-card-value-primary" id="drawerClimbFpm">--- ft/min</div>
+          <div class="telemetry-card-value-secondary" id="drawerClimbMs">--- m/s</div>
+        </div>
+        <div class="telemetry-card" id="cardSquawk">
+          <div class="telemetry-card-label">Squawk Code</div>
+          <div class="telemetry-card-value-primary" id="drawerSquawk">----</div>
+          <div class="telemetry-card-value-secondary" id="drawerSquawkType">TRANSPONDER</div>
+        </div>
+        <div class="telemetry-card">
+          <div class="telemetry-card-label">True Heading</div>
+          <div class="telemetry-card-value-primary" id="drawerHeading">---°</div>
+          <div class="telemetry-card-value-secondary" id="drawerHeadingCardinal">NORTH</div>
+        </div>
+        <div class="telemetry-card">
+          <div class="telemetry-card-label">Position</div>
+          <div class="telemetry-card-value-primary" id="drawerCoords" style="font-size: 11px;">--.----°, --.----°</div>
+          <div class="telemetry-card-value-secondary" id="drawerLastContact">0s ago</div>
+        </div>
+      </div>
+
+      <!-- HTML5 Canvas Sparkline Trends -->
+      <div class="sparkline-section">
+        <div class="sparkline-box">
+          <div class="sparkline-header">
+            <span class="sparkline-title">Altitude Trend (ft)</span>
+            <span class="sparkline-current" id="sparklineAltCurrent">--- ft</span>
+          </div>
+          <canvas id="altSparkline" class="sparkline-canvas" width="340" height="70"></canvas>
+        </div>
+
+        <div class="sparkline-box">
+          <div class="sparkline-header">
+            <span class="sparkline-title">Ground Speed Trend (kts)</span>
+            <span class="sparkline-current" id="sparklineSpeedCurrent">--- kts</span>
+          </div>
+          <canvas id="speedSparkline" class="sparkline-canvas" width="340" height="70"></canvas>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Toggleable Aircraft Data Table Overlay -->
+  <div class="hud-panel hud-table-overlay" id="aircraftTableOverlay">
+    <div class="table-toolbar">
+      <div class="table-search-group">
+        <input type="text" id="tableSearchInput" class="table-search-input" placeholder="Filter by Callsign, ICAO, or Country...">
+      </div>
+      <div class="table-filter-pills">
+        <button class="filter-pill active" id="filterAll" data-filter="ALL">ALL (<span id="pillCountAll">0</span>)</button>
+        <button class="filter-pill" id="filterNominal" data-filter="NOMINAL">NOMINAL (<span id="pillCountNominal">0</span>)</button>
+        <button class="filter-pill" id="filterAnomalies" data-filter="ANOMALIES">ANOMALIES (<span id="pillCountAnomalies">0</span>)</button>
+      </div>
+      <button class="hud-btn" id="tableCloseBtn">&times; CLOSE</button>
+    </div>
+    <div class="hud-table-container">
+      <table class="hud-table" id="aircraftTable">
+        <thead>
+          <tr>
+            <th data-col="callsign">CALLSIGN <span class="sort-arrow">▲</span></th>
+            <th data-col="icao24">ICAO24 <span class="sort-arrow"></span></th>
+            <th data-col="origin_country">COUNTRY <span class="sort-arrow"></span></th>
+            <th data-col="baro_altitude">ALTITUDE <span class="sort-arrow"></span></th>
+            <th data-col="velocity">SPEED <span class="sort-arrow"></span></th>
+            <th data-col="vertical_rate">V-RATE <span class="sort-arrow"></span></th>
+            <th data-col="squawk">SQUAWK <span class="sort-arrow"></span></th>
+            <th data-col="status">STATUS <span class="sort-arrow"></span></th>
+            <th>ACTION</th>
+          </tr>
+        </thead>
+        <tbody id="aircraftTableBody">
+          <tr><td colspan="9" style="text-align: center; color: var(--hud-text-dim);">NO FLIGHT TELEMETRY LOADED</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Leaflet 1.9.4 JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Modular HUD JavaScript Components -->
+  <script src="js/audio.js"></script>
+  <script src="js/sparklines.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/markers.js"></script>
+  <script src="js/trails.js"></script>
+  <script src="js/panels.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
